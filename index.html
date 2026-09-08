@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Pose Trainer – ฝึกจำท่ามือ</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- ml5.js (รวม handpose + KNNClassifier) -->
+  <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Sign Pose Trainer</h1>
+      <p class="subtitle">เครื่องมือฝึกจำท่ามือเดี่ยว (Static Single-Hand Pose) · ประมวลผลทั้งหมดในเบราว์เซอร์ของคุณ</p>
+    </header>
+
+    <main>
+      <!-- ส่วนกล้อง + Canvas -->
+      <section class="camera-section">
+        <div class="video-wrapper">
+          <video id="video" playsinline autoplay muted></video>
+          <canvas id="canvas"></canvas>
+          <div id="camera-status" class="status-badge">กำลังขอสิทธิ์กล้อง...</div>
+        </div>
+
+        <div class="camera-controls">
+          <label class="checkbox-label">
+            <input type="checkbox" id="skip-frames" />
+            ลดความถี่ประมวลผล (ทุก 2 เฟรม) – ช่วยเครื่องช้า
+          </label>
+        </div>
+      </section>
+
+      <!-- แผงควบคุม -->
+      <section class="control-panel">
+        <!-- สถานะปัจจุบัน -->
+        <div class="status-box">
+          <div class="status-row">
+            <span class="label">โหมด:</span>
+            <span id="mode-display" class="value">ทำนาย</span>
+          </div>
+          <div class="status-row">
+            <span class="label">จับมือ:</span>
+            <span id="hand-status" class="value">ยังไม่พบ</span>
+          </div>
+          <div class="status-row">
+            <span class="label">ผลทำนาย:</span>
+            <span id="prediction-display" class="value prediction">–</span>
+          </div>
+          <div class="status-row">
+            <span class="label">ความมั่นใจ:</span>
+            <span id="confidence-display" class="value">–</span>
+          </div>
+        </div>
+
+        <!-- สลับโหมด -->
+        <div class="mode-switch">
+          <button id="btn-predict-mode" class="mode-btn active">โหมดทำนาย</button>
+          <button id="btn-teach-mode" class="mode-btn">โหมดสอนท่า</button>
+        </div>
+
+        <!-- ส่วนโหมดสอน -->
+        <div id="teach-panel" class="panel hidden">
+          <h3>สอนท่ามือใหม่</h3>
+          <p class="hint">แนะนำให้เพิ่มตัวอย่างอย่างน้อย <strong>10–15 ครั้ง</strong> จากหลายมุมและระยะ เพื่อความแม่นยำ</p>
+          
+          <div class="form-group">
+            <label for="sign-label">ชื่อท่ามือ</label>
+            <input type="text" id="sign-label" placeholder="เช่น ก, ข, สวัสดี, ขอบคุณ" maxlength="30" />
+          </div>
+
+          <button id="btn-add-example" class="btn primary" disabled>
+            เพิ่มตัวอย่างท่าปัจจุบัน
+          </button>
+
+          <div id="example-count" class="example-count">ยังไม่มีตัวอย่าง</div>
+        </div>
+
+        <!-- ส่วนโหมดทำนาย (แสดงรายการท่าที่สอนแล้ว) -->
+        <div id="predict-panel" class="panel">
+          <h3>ท่าที่สอนไว้แล้ว</h3>
+          <ul id="sign-list" class="sign-list">
+            <li class="empty">ยังไม่มีท่าที่สอน</li>
+          </ul>
+        </div>
+
+        <!-- ปุ่มจัดการข้อมูล -->
+        <div class="data-actions">
+          <button id="btn-export" class="btn secondary">Export JSON</button>
+          <button id="btn-import" class="btn secondary">Import JSON</button>
+          <input type="file" id="import-file" accept=".json" hidden />
+          <button id="btn-clear-all" class="btn danger">ลบท่าทั้งหมด</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        ประมวลผลทั้งหมดฝั่งผู้ใช้ · ไม่มีการส่งภาพหรือข้อมูลออกนอกเครื่อง · 
+        ใช้สำหรับฝึกจำท่ามือเดี่ยวเท่านั้น (ไม่ใช่ตัวแปลภาษามือแบบเต็มรูปแบบ)
+      </p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
