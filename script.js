@@ -232,10 +232,34 @@ function classifyHand(features) {
   });
 }
 
-// ==================== วาด Landmarks ====================
-function drawLandmarks(predictions) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// ==================== วาดภาพกล้อง + Landmarks ====================
+function drawFrame() {
+  // ตั้งขนาด canvas ให้ตรงกับวิดีโอ
+  if (video && video.videoWidth > 0) {
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+  }
 
+  // 1. วาดภาพจากกล้องลง canvas ก่อน (สำคัญมาก – ทำให้เห็นภาพไม่ว่า video element จะโชว์หรือไม่)
+  if (video && video.readyState >= 2) {
+    ctx.save();
+    // พลิกภาพแนวนอนให้เหมือนกระจก (ธรรมชาติกว่า)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // 2. วาดจุดมือทับลงไป
+  // หมายเหตุ: เราตั้ง flipHorizontal: true ใน ml5 แล้ว
+  // และเราพลิกภาพวิดีโอด้วย scale(-1)
+  // ดังนั้นพิกัด landmarks ที่ได้มาเข้ากับภาพที่พลิกแล้ว → วาดตรง ๆ ได้เลย
+  const predictions = latestPredictions;
   if (!predictions || predictions.length === 0) return;
 
   const landmarks = predictions[0].landmarks;
@@ -249,8 +273,7 @@ function drawLandmarks(predictions) {
     [5, 9], [9, 13], [13, 17]
   ];
 
-  // วาดเส้น
-  ctx.strokeStyle = "rgba(59, 130, 246, 0.9)";
+  ctx.strokeStyle = "rgba(59, 130, 246, 0.95)";
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
 
@@ -263,7 +286,6 @@ function drawLandmarks(predictions) {
     ctx.stroke();
   }
 
-  // วาดจุด
   for (let i = 0; i < landmarks.length; i++) {
     const [x, y] = landmarks[i];
     ctx.beginPath();
@@ -274,21 +296,10 @@ function drawLandmarks(predictions) {
 }
 
 /**
- * Loop หลัก – วาด landmarks ทุกเฟรม
+ * Loop หลัก
  */
 function drawLoop() {
-  // ตรวจสอบขนาด canvas ให้ตรงกับวิดีโอเสมอ
-  if (video && video.videoWidth > 0) {
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
-  }
-
-  // วาดจากผลล่าสุดที่มี
-  if (isModelReady) {
-    drawLandmarks(latestPredictions);
-  }
+  drawFrame();
   requestAnimationFrame(drawLoop);
 }
 

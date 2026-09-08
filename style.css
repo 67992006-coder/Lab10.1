@@ -90,18 +90,25 @@ main {
   overflow: hidden;
 }
 
-#video,
+#video {
+  /* ซ่อน video element – เราจะวาดภาพลง canvas เองแทน */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 #canvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain; /* ใช้ contain เพื่อไม่ให้พิกัดจุดมือเพี้ยน */
+  object-fit: contain;
   background: #000;
-}
-
-#canvas {
   pointer-events: none;
 }
 
