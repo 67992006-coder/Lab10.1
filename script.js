@@ -123,7 +123,7 @@ function loadModels() {
     knnClassifier = ml5.KNNClassifier();
 
     // ใช้ callback style ที่เสถียรกว่า
-    handposeModel = ml5.handpose(video, { flipHorizontal: true }, modelReady);
+    handposeModel = ml5.handpose(video, { flipHorizontal: false }, modelReady);
 
   } catch (err) {
     console.error("สร้าง handpose ไม่สำเร็จ:", err);
@@ -232,37 +232,33 @@ function classifyHand(features) {
   });
 }
 
-// ==================== วาดภาพกล้อง + Landmarks ====================
-function drawFrame() {
-  // ตั้งขนาด canvas ให้ตรงกับวิดีโอ
-  if (video && video.videoWidth > 0) {
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
+// ==================== วาด Landmarks บน canvas โปร่งใส ====================
+function drawLandmarks() {
+  if (!video || !canvas || !ctx) return;
+
+  // บังคับขนาด canvas = ขนาดจริงของวิดีโอ
+  if (video.videoWidth > 0 && (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight)) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
   }
 
-  // 1. วาดภาพจากกล้องลง canvas ก่อน (สำคัญมาก – ทำให้เห็นภาพไม่ว่า video element จะโชว์หรือไม่)
-  if (video && video.readyState >= 2) {
-    ctx.save();
-    // พลิกภาพแนวนอนให้เหมือนกระจก (ธรรมชาติกว่า)
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  } else {
-    ctx.fillStyle = "#111";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 2. วาดจุดมือทับลงไป
-  // หมายเหตุ: เราตั้ง flipHorizontal: true ใน ml5 แล้ว
-  // และเราพลิกภาพวิดีโอด้วย scale(-1)
-  // ดังนั้นพิกัด landmarks ที่ได้มาเข้ากับภาพที่พลิกแล้ว → วาดตรง ๆ ได้เลย
   const predictions = latestPredictions;
+
+  // ถ้าพบมือ ให้วาดวงกลมทดสอบมุมซ้ายบน (พิสูจน์ว่า canvas วาดได้)
+  if (hasHand) {
+    ctx.beginPath();
+    ctx.arc(30, 30, 12, 0, Math.PI * 2);
+    ctx.fillStyle = "#f59e0b";
+    ctx.fill();
+  }
+
   if (!predictions || predictions.length === 0) return;
 
   const landmarks = predictions[0].landmarks;
+  // วิดีโอถูก CSS ทำ scaleX(-1) แล้ว → ต้องพลิก x ของจุดให้ตรงภาพ
+  const flipX = (x) => canvas.width - x;
 
   const connections = [
     [0, 1], [1, 2], [2, 3], [3, 4],
@@ -274,32 +270,29 @@ function drawFrame() {
   ];
 
   ctx.strokeStyle = "rgba(59, 130, 246, 0.95)";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
   ctx.lineCap = "round";
 
   for (const [a, b] of connections) {
     const pa = landmarks[a];
     const pb = landmarks[b];
     ctx.beginPath();
-    ctx.moveTo(pa[0], pa[1]);
-    ctx.lineTo(pb[0], pb[1]);
+    ctx.moveTo(flipX(pa[0]), pa[1]);
+    ctx.lineTo(flipX(pb[0]), pb[1]);
     ctx.stroke();
   }
 
   for (let i = 0; i < landmarks.length; i++) {
     const [x, y] = landmarks[i];
     ctx.beginPath();
-    ctx.arc(x, y, i === 0 ? 7 : 5, 0, Math.PI * 2);
+    ctx.arc(flipX(x), y, i === 0 ? 8 : 6, 0, Math.PI * 2);
     ctx.fillStyle = i === 0 ? "#22c55e" : "#60a5fa";
     ctx.fill();
   }
 }
 
-/**
- * Loop หลัก
- */
 function drawLoop() {
-  drawFrame();
+  drawLandmarks();
   requestAnimationFrame(drawLoop);
 }
 
