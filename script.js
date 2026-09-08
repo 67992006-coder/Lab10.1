@@ -41,9 +41,12 @@ async function init() {
 
   bindUIEvents();
   await openDatabase();
-  await loadModels();
   await loadSignsFromDB();
+
+  // เปิดกล้องก่อน แล้วค่อยโหลดโมเดล (ลำดับนี้เสถียรกว่า)
   await startCamera();
+  await loadModels();
+
   requestAnimationFrame(drawLoop);
 }
 
@@ -102,29 +105,46 @@ async function startCamera() {
 // ==================== โหลดโมเดล ml5 ====================
 async function loadModels() {
   const statusEl = document.getElementById("camera-status");
-  statusEl.textContent = "กำลังโหลดโมเดล AI...";
+  statusEl.textContent = "กำลังโหลดโมเดล AI... (อาจใช้เวลา 15–40 วินาที)";
+  statusEl.classList.remove("error", "ok");
+
+  // ตรวจสอบว่า ml5 โหลดมาแล้วหรือยัง
+  if (typeof ml5 === "undefined") {
+    statusEl.textContent = "โหลด ml5.js ไม่สำเร็จ – ตรวจสอบเน็ตแล้วรีเฟรชหน้า";
+    statusEl.classList.add("error");
+    return;
+  }
 
   try {
     knnClassifier = ml5.KNNClassifier();
 
+    // ใส่ timeout กันค้างนานเกินไป (90 วินาที)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("หมดเวลาโหลดโมเดล (เกิน 90 วินาที)")), 90000);
+    });
+
     // โหลด handpose
-    // flipHorizontal: true → กลับภาพเหมือนกระจก (ธรรมชาติสำหรับผู้ใช้)
-    handposeModel = await ml5.handpose(video, {
+    // flipHorizontal: true → กลับภาพเหมือนกระจก
+    const modelPromise = ml5.handpose(video, {
       flipHorizontal: true,
       maxContinuousChecks: Infinity,
-      detectionConfidence: 0.8,
-      scoreThreshold: 0.75
+      detectionConfidence: 0.75,
+      scoreThreshold: 0.7
     });
+
+    handposeModel = await Promise.race([modelPromise, timeoutPromise]);
 
     handposeModel.on("predict", onHandPredict);
 
     isModelReady = true;
-    statusEl.textContent = "โมเดลพร้อม · รอจับมือ";
+    statusEl.textContent = "โมเดลพร้อม · ยกมือขึ้นหน้ากล้อง";
     statusEl.classList.add("ok");
+    statusEl.classList.remove("error");
   } catch (err) {
     console.error("Model load error:", err);
-    statusEl.textContent = "โหลดโมเดลไม่สำเร็จ – ลองรีเฟรชหน้า";
+    statusEl.textContent = "โหลดโมเดลไม่สำเร็จ: " + (err.message || "ลองรีเฟรชหน้า หรือเช็คเน็ต");
     statusEl.classList.add("error");
+    statusEl.classList.remove("ok");
   }
 }
 
