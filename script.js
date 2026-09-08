@@ -9,7 +9,7 @@
  */
 
 // ==================== ค่าคงที่ ====================
-const CONFIDENCE_THRESHOLD = 0.7;
+const CONFIDENCE_THRESHOLD = 0.55; // ลดลงเล็กน้อย เพราะ KNN กับตัวอย่างน้อยมักได้ conf ไม่สูงมาก
 const DB_NAME = "SignPoseTrainerDB";
 const DB_VERSION = 1;
 const STORE_NAME = "signs";
@@ -120,7 +120,10 @@ function loadModels() {
   console.log("เริ่มโหลด handpose...");
 
   try {
-    knnClassifier = ml5.KNNClassifier();
+    // อย่าสร้าง KNN ใหม่ถ้ามีข้อมูลโหลดจาก DB แล้ว
+    if (!knnClassifier) {
+      knnClassifier = ml5.KNNClassifier();
+    }
 
     // ใช้ callback style ที่เสถียรกว่า
     handposeModel = ml5.handpose(video, { flipHorizontal: false }, modelReady);
@@ -143,11 +146,28 @@ function modelReady() {
   statusEl.classList.remove("error");
   isModelReady = true;
 
+  // ใส่ข้อมูลท่าที่โหลดจาก IndexedDB กลับเข้า KNN (กันข้อมูลหาย)
+  rebuildKnnFromSignsData();
+
   // เริ่มฟังผลทำนาย
   handposeModel.on("predict", (results) => {
     latestPredictions = results;
     handlePredictions(results);
   });
+}
+
+/** สร้าง KNN ใหม่จาก signsData ที่มีอยู่ */
+function rebuildKnnFromSignsData() {
+  knnClassifier = ml5.KNNClassifier();
+  let total = 0;
+  for (const label of Object.keys(signsData)) {
+    for (const feat of signsData[label]) {
+      knnClassifier.addExample(feat, label);
+      total++;
+    }
+  }
+  console.log("rebuild KNN จาก DB:", Object.keys(signsData).length, "ท่า,", total, "ตัวอย่าง");
+  updateSignListUI();
 }
 
 /**
@@ -210,6 +230,14 @@ function normalizeLandmarks(landmarks) {
 function classifyHand(features) {
   if (!features || !knnClassifier) return;
 
+  // ถ้ายังไม่มีท่าที่สอนเลย
+  const numLabels = knnClassifier.getNumLabels ? knnClassifier.getNumLabels() : Object.keys(signsData).length;
+  if (numLabels === 0) {
+    document.getElementById("prediction-display").textContent = "ยังไม่มีท่าที่สอน";
+    document.getElementById("confidence-display").textContent = "–";
+    return;
+  }
+
   knnClassifier.classify(features, (err, result) => {
     if (err) {
       console.error("Classify error:", err);
@@ -217,16 +245,18 @@ function classifyHand(features) {
     }
 
     const label = result.label;
-    const confidence = result.confidencesByLabel[label] || 0;
+    const confidences = result.confidencesByLabel || {};
+    const confidence = confidences[label] || 0;
 
     const predEl = document.getElementById("prediction-display");
     const confEl = document.getElementById("confidence-display");
 
+    // แสดง label ที่ใกล้ที่สุดเสมอ พร้อมบอกถ้ามั่นใจต่ำ
     if (confidence >= CONFIDENCE_THRESHOLD) {
       predEl.textContent = label;
       confEl.textContent = (confidence * 100).toFixed(1) + "%";
     } else {
-      predEl.textContent = "ไม่แน่ใจ";
+      predEl.textContent = "ไม่แน่ใจ (" + label + ")";
       confEl.textContent = (confidence * 100).toFixed(1) + "%";
     }
   });
@@ -355,8 +385,10 @@ function addExample() {
     return;
   }
 
+  // เพิ่มเข้า KNN
   knnClassifier.addExample(currentHandFeatures, label);
 
+  // เก็บสำเนาไว้เอง
   if (!signsData[label]) signsData[label] = [];
   signsData[label].push([...currentHandFeatures]);
 
@@ -364,6 +396,18 @@ function addExample() {
   updateExampleCountDisplay(label);
   updateSignListUI();
   saveSignsToDB();
+
+  // feedback สั้น ๆ
+  const btn = document.getElementById("btn-add-example");
+  const oldText = btn.textContent;
+  btn.textContent = "บันทึกแล้ว! (" + exampleCounts[label] + ")";
+  btn.style.background = "#22c55e";
+  setTimeout(() => {
+    btn.textContent = oldText;
+    btn.style.background = "";
+  }, 600);
+
+  console.log("เพิ่มตัวอย่าง:", label, "รวม", exampleCounts[label], "features length:", currentHandFeatures.length);
 }
 
 function updateExampleCountDisplay(currentLabel) {
