@@ -277,6 +277,14 @@ function drawLandmarks(predictions) {
  * Loop หลัก – วาด landmarks ทุกเฟรม
  */
 function drawLoop() {
+  // ตรวจสอบขนาด canvas ให้ตรงกับวิดีโอเสมอ
+  if (video && video.videoWidth > 0) {
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+  }
+
   // วาดจากผลล่าสุดที่มี
   if (isModelReady) {
     drawLandmarks(latestPredictions);
